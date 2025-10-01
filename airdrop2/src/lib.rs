@@ -71,24 +71,15 @@ mod tests {
     }
     #[test]
     fn transfer_sol() {
-        // Load derived wallet
+        // Load your devnet keypair
         let keypair = read_keypair_file("dev-wallet.json").expect("Couldn't find wallet file");
         
-        // Verify the keypair
-        let pubkey = keypair.pubkey();
-        let message_bytes = b"I verify my Solana Keypair!";
-        let sig = keypair.sign_message(message_bytes);
-        let sig_hashed = hash(sig.as_ref());
+        println!("Loaded keypair with pubkey: {}", keypair.pubkey());
         
-        match sig.verify(&pubkey.to_bytes(), &sig_hashed.to_bytes()) {
-            true => println!("Signature verified"),
-            false => println!("Verification failed"),
-        }
         
-        // destination
         let to_pubkey = Pubkey::from_str("29DypSfJxtzvKid7MYF9VcPnCPgg7jRtQf9MU3ukLDew").unwrap();
         
-       
+        // Connect to devnet
         let rpc_client = RpcClient::new(RPC_URL);
         
         // Get recent blockhash
@@ -96,9 +87,39 @@ mod tests {
             .get_latest_blockhash()
             .expect("Failed to get recent blockhash");
         
+        // let transaction = Transaction::new_signed_with_payer(
+        //     &[transfer(&keypair.pubkey(), &to_pubkey, 100_000_000)],
+        //     Some(&keypair.pubkey()),
+        //     &vec![&keypair],
+        //     recent_blockhash,
+        // );
         
+        
+        // Get current balance
+        let balance = rpc_client
+            .get_balance(&keypair.pubkey())
+            .expect("Failed to get balance");
+        
+        println!("Current balance: {} lamports ({} SOL)", balance, balance as f64 / 1_000_000_000.0);
+        
+        
+        let message = Message::new_with_blockhash(
+            &[transfer(&keypair.pubkey(), &to_pubkey, balance)],
+            Some(&keypair.pubkey()),
+            &recent_blockhash,
+        );
+        
+        // Get transaction fee
+        let fee = rpc_client
+            .get_fee_for_message(&message)
+            .expect("Failed to get fee");
+        
+        println!("Transaction fee: {} lamports", fee);
+        println!("Transferring: {} lamports ({} SOL)", balance - fee, (balance - fee) as f64 / 1_000_000_000.0);
+        
+        // Create final transaction with balance minus fee
         let transaction = Transaction::new_signed_with_payer(
-            &[transfer(&keypair.pubkey(), &to_pubkey, 100_000_000)],
+            &[transfer(&keypair.pubkey(), &to_pubkey, balance - fee)],
             Some(&keypair.pubkey()),
             &vec![&keypair],
             recent_blockhash,
@@ -114,5 +135,5 @@ mod tests {
             signature
         );
     }
-    
+
 }
