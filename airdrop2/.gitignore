@@ -3,7 +3,7 @@
 **/*.rs.bk
 Cargo.lock
 
-# Wallet files - NEVER COMMIT PRIVATE KEYS
+# Wallet files 
 dev-wallet.json
 *.json
 
