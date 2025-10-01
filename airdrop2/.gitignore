@@ -1,0 +1,12 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Wallet files - NEVER COMMIT PRIVATE KEYS
+dev-wallet.json
+*.json
+
+# IDE
+.vscode/
+.idea/
