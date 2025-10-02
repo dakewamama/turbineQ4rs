@@ -6,12 +6,14 @@ mod tests {
     use solana_client::rpc_client::RpcClient;
     const RPC_URL: &str = "https://api.devnet.solana.com";
     use solana_system_interface::instruction::transfer;
+    use solana_system_interface::program as system_program;
     use solana_sdk::{
         hash::hash,
         message::Message,
         pubkey::Pubkey,
         signature::{Keypair, Signer, read_keypair_file},
         transaction::Transaction,
+        instruction::{Instruction, AccountMeta},
     };
     use std::str::FromStr;
     #[test]
@@ -126,6 +128,83 @@ mod tests {
         );
         
         // Send transaction
+        let signature = rpc_client
+            .send_and_confirm_transaction(&transaction)
+            .expect("Failed to send transaction");
+        
+        println!(
+            "Success! Check out your TX here:\nhttps://explorer.solana.com/tx/{}/?cluster=devnet",
+            signature
+        );
+    }
+    #[test]
+    fn submit_completion() {
+        // Load your Turbin3 keypair
+        let signer = read_keypair_file("turbin3-wallet.json").expect("Couldn't find wallet file");
+        
+        // Create RPC client
+        let rpc_client = RpcClient::new(RPC_URL);
+        
+        // Define program and account public keys
+        let mint = Keypair::new();
+        let turbin3_prereq_program = Pubkey::from_str("TRBZyQHB3m68FGeVsqTK39Wm4xejadjVhP5MAZaKWDM").unwrap();
+        let collection = Pubkey::from_str("5ebsp5RChCGK7ssRZMVMufgVZhd2kFbNaotcZ5UvytN2").unwrap();
+        let mpl_core_program = Pubkey::from_str("CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d").unwrap();
+        let system_program = system_program::id();
+        
+        // Get the PDA 
+        let signer_pubkey = signer.pubkey();
+        let seeds = &[b"prereqs", signer_pubkey.as_ref()];
+        let (prereq_pda, _bump) = Pubkey::find_program_address(seeds, &turbin3_prereq_program);
+        
+        println!("PDA: {}", prereq_pda);
+        
+        // Get the authority from the collection account
+        let collection_account = rpc_client
+            .get_account_data(&collection)
+            .expect("Failed to get collection account");
+        
+        // The update authority is stored in bytes 1-33 (skip 1-byte discriminator)
+        let authority_bytes = &collection_account[1..33];
+        let authority = Pubkey::try_from(authority_bytes).expect("Invalid authority pubkey");
+        
+        println!("Authority: {}", authority);
+        
+        // Prepare the instruction data (discriminator for submit_rs)
+        let data = vec![77, 124, 82, 163, 21, 133, 181, 206];
+        
+        // Define the accounts metadata
+        let accounts = vec![
+            AccountMeta::new(signer.pubkey(), true),           
+            AccountMeta::new(prereq_pda, false),               
+            AccountMeta::new(mint.pubkey(), true),             
+            AccountMeta::new(collection, false),               
+            AccountMeta::new_readonly(authority, false),       
+            AccountMeta::new_readonly(mpl_core_program, false), 
+            AccountMeta::new_readonly(system_program, false),  
+        ];
+        
+        // Get the recent blockhash
+        let blockhash = rpc_client
+            .get_latest_blockhash()
+            .expect("Failed to get recent blockhash");
+        
+        // Build the instruction
+        let instruction = Instruction {
+            program_id: turbin3_prereq_program,
+            accounts,
+            data,
+        };
+        
+        // Create and sign the transaction
+        let transaction = Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&signer.pubkey()),
+            &[&signer, &mint],
+            blockhash,
+        );
+        
+        // Send and confirm the transaction
         let signature = rpc_client
             .send_and_confirm_transaction(&transaction)
             .expect("Failed to send transaction");

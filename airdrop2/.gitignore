@@ -5,7 +5,8 @@ Cargo.lock
 
 # Wallet files 
 dev-wallet.json
-*.json
+turbin3-wallet.json
+*wallet.json
 
 # IDE
 .vscode/
